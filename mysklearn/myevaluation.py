@@ -1,5 +1,6 @@
 import math
 import random
+import itertools
 from typing import Callable
 import mysklearn.myutils as myutils
 
@@ -35,7 +36,7 @@ def train_test_split(X, y, test_size=0.33, random_state=None, shuffle=True):
         # note: the unit test for train_test_split() does not test
         # your use of random_state or shuffle, but you should still
         # implement this and check your work yourself
-        indecies = myutils.shuffle_in_place(num_instances)
+        indecies = myutils.gen_shuffle_indecies(num_instances)
     else:
         indecies = [ i for i in range(num_instances) ]
 
@@ -46,6 +47,51 @@ def train_test_split(X, y, test_size=0.33, random_state=None, shuffle=True):
     test = indecies[split_index:]
 
     return [ X[i] for i in train ], [ X[i] for i in test ], [ y[i] for i in train ], [ y[i] for i in test ]
+
+def train_test_split_indecies(X, y, test_size=0.33, random_state=None, shuffle=True):
+    """Split dataset into train and test sets (sublists) based on a test set size.
+
+    Args:
+        X(list of list of obj): The list of samples
+            The shape of X is (n_samples, n_features)
+        y(list of obj): The target y values (parallel to X)
+            The shape of y is n_samples
+        test_size(float or int): float for proportion of dataset to be in test set (e.g. 0.33 for a 2:1 split)
+            or int for absolute number of instances to be in test set (e.g. 5 for 5 instances in test set)
+        random_state(int): integer used for seeding a random number generator for reproducible results
+        shuffle(bool): whether or not to randomize the order of the instances before splitting
+
+    Returns:
+        X_train(list of list of obj): The list of training samples
+        X_test(list of list of obj): The list of testing samples
+        y_train(list of obj): The list of target y values for training (parallel to X_train)
+        y_test(list of obj): The list of target y values for testing (parallel to X_test)
+
+    Note:
+        Loosely based on sklearn's train_test_split(): https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.train_test_split.html
+    """
+    num_instances = len(X)
+    if random_state is not None:
+       random.seed(random_state)
+
+    if shuffle:
+        # TODO: shuffle the rows in X and y before splitting
+        # be sure to maintain the parallel order of X and y!!
+        # note: the unit test for train_test_split() does not test
+        # your use of random_state or shuffle, but you should still
+        # implement this and check your work yourself
+        indecies = myutils.gen_shuffle_indecies(num_instances)
+    else:
+        indecies = [ i for i in range(num_instances) ]
+
+    if isinstance(test_size, float):
+        test_size = math.ceil(num_instances * test_size)
+    split_index = num_instances - test_size
+
+    return indecies[:split_index], indecies[split_index:]
+
+def indecies_to_folds(train, test):
+    return [train], [test]
 
 def kfold_cross_validation(X, n_splits=5):
     """Split dataset into cross validation folds.
@@ -176,3 +222,55 @@ def cross_validate(splitter: 'Callable[[], tuple[list[list[int]], list[list[int]
             results[i][0].extend(y_test)
             results[i][1].extend(model.predict(X_test))
     return results
+
+# Intended to be used like a module
+class metrics:
+    """Set of statistical calculations used to evaluate classifiers"""
+
+    __no_calc = lambda cmat, size, R: (cmat, size, R) # no_calc just returns the arguments without performing a calculation. This is used in metrics.all()
+    __accuracy_calc = lambda cmat, size, R: myutils.avg([(R - sum([cmat[i][j] + cmat[j][i] for j in range(size) if j != i])) / R for i in range(size)])
+    __precision_calc = lambda cmat, size, _: myutils.avg([(cmat[i][i] / y if (y := sum([cmat[i][j] for j in range(size)])) != 0 else 0) for i in range(size)])
+    __recall_calc = lambda cmat, size, _: myutils.avg([(cmat[i][i] / y if (y := sum([cmat[j][i] for j in range(size)])) != 0 else 0) for i in range(size)])
+    __fmeasure_calc = lambda cmat, size, R: (2 * prec * recl) / (prec + recl) if (prec := metrics.__precision_calc(cmat, size, R)/size) != 0 and (recl := metrics.__recall_calc(cmat, size, R)/size) != 0 else 0
+
+    @staticmethod
+    def all(y_test: list, y_actual: list):
+        """Calculate and return all metrics. Faster than running them individually by only needing to run common operations once"""
+        cmat, size, R = metrics.calculate_metric(y_test, y_actual, metrics.__no_calc)
+        acc = metrics.__accuracy_calc(cmat, size, R)
+        return acc, 1.0 - acc, metrics.__precision_calc(cmat, size, R), metrics.__recall_calc(cmat, size, R), metrics.__fmeasure_calc(cmat, size, R)
+
+    @staticmethod
+    def calculate_metric(y_test: list, y_actual: list, calculatorFunc: "Callable[[list[list], int, int], float]")-> float:
+        """Consider as private"""
+        cmat = metrics.gen_confusion_matrix(y_test, y_actual)
+        size = len(cmat)
+        if size == 0:
+            return 1.0
+        R = myutils.sum_matrix(cmat)
+        return calculatorFunc(cmat, size, R)
+
+    @staticmethod
+    def accuracy(y_test: list, y_actual: list)-> float:
+        return metrics.calculate_metric(y_test, y_actual, metrics.__accuracy_calc)
+
+    @staticmethod
+    def error_rate(y_test: list, y_actual: list)-> float:
+        return 1 - metrics.accuracy(y_test, y_actual)
+
+    @staticmethod
+    def precision(y_test: list, y_actual: list)-> float:
+        return metrics.calculate_metric(y_test, y_actual, metrics.__precision_calc)
+
+    @staticmethod
+    def recall(y_test: list, y_actual: list)-> float:
+        return metrics.calculate_metric(y_test, y_actual, metrics.__recall_calc)
+
+    @staticmethod
+    def fmeasure(y_test: list, y_actual: list)-> float:
+        return metrics.calculate_metric(y_test, y_actual, metrics.__fmeasure_calc)
+
+    @staticmethod
+    def gen_confusion_matrix(y_test: list, y_actual: list)-> "list[list]":
+        labels = { y for y in itertools.chain(y_test, y_actual) }
+        return confusion_matrix(y_test, y_actual, labels)

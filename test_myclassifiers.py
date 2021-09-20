@@ -1,8 +1,9 @@
+from mysklearn.myevaluation import train_test_split
 import numpy as np
 import scipy.stats as stats
 from mysklearn import myutils
 from mysklearn.mypytable import MyPyTable
-from mysklearn.myclassifiers import MySimpleLinearRegressor, MyKNeighborsClassifier, MyNaiveBayesClassifier, MyDecisionTreeClassifier
+from mysklearn.myclassifiers import MyRandomForestClassifier, MySimpleLinearRegressor, MyKNeighborsClassifier, MyNaiveBayesClassifier, DecisionTreeClassifier
 
 # note: order is actual/received student value, expected/solution
 def test_simple_linear_regressor_fit():
@@ -131,7 +132,7 @@ def test_kneighbors_classifier_kneighbors():
         [19.0, 3.4],
         [19.6, 11.1]
     ]
-    y_train = ["−", "−", "−", "+", "−", "+", "−", "+", "+", "+", "−", "−", "−", "−", "−", "+", "+", "+", "−", "+"]
+    y_train = ["-", "-", "-", "+", "-", "+", "-", "+", "+", "+", "-", "-", "-", "-", "-", "+", "+", "+", "-", "+"]
     kneigh.fit(X_train, y_train)
     X_test = [[9.1, 11.0]]
     y_expect = [
@@ -220,7 +221,7 @@ def test_kneighbors_classifier_predict():
         [19.0, 3.4],
         [19.6, 11.1]
     ]
-    y_train = ["−", "−", "−", "+", "−", "+", "−", "+", "+", "+", "−", "−", "−", "−", "−", "+", "+", "+", "−", "+"]
+    y_train = ["-", "-", "-", "+", "-", "+", "-", "+", "+", "+", "-", "-", "-", "-", "-", "+", "+", "+", "-", "+"]
     kneigh.fit(X_train, y_train)
     X_test = [[9.1, 11.0]]
     y_expect = ["+"]
@@ -685,7 +686,7 @@ def test_naive_bayes_classifier_predict():
     assert myutils.compare_str_lists(predictions_expect, predictions_actual)
 
 def test_decision_tree_classifier_fit():
-    dtree = MyDecisionTreeClassifier()
+    f = MyRandomForestClassifier(F=0.5, M=10, max_threads=1)
 
     # interview dataset
     interview_header = ["level", "lang", "tweets", "phd", "interviewed_well"]
@@ -706,34 +707,9 @@ def test_decision_tree_classifier_fit():
         ["Junior", "Python", "no", "yes"]
     ]
     y_train = ["False", "False", "True", "True", "True", "False", "True", "False", "True", "True", "True", "True", "True", "False"]
-    tree_expect =   ["Attribute", 0,
-                        ["Value", "Senior",
-                            ["Attribute", 2,
-                                ["Value", "yes",
-                                    ["Leaf", "True", 2, 5]
-                                ],
-                                ["Value", "no",
-                                    ["Leaf", "False", 3, 5]
-                                ]
-                            ]
-                        ],
-                        ["Value", "Mid",
-                            ["Leaf", "True", 4, 14]
-                        ],
-                        ["Value", "Junior",
-                            ["Attribute", 3,
-                                ["Value", "yes",
-                                    ["Leaf", "False", 2, 5]
-                                ],
-                                ["Value", "no",
-                                    ["Leaf", "True", 3, 5]
-                                ]
-                            ]
-                        ]
-                    ]
 
-    dtree.fit(X_train, y_train)
-    assert myutils.compare_tree_lists(tree_expect, dtree.tree)
+    f.fit(X_train, y_train)
+    print(len(f.forest))
 
     # bramer degrees dataset
     degrees_header = ["SoftEng", "ARIN", "HCI", "CSA", "Project", "Class"]
@@ -766,41 +742,36 @@ def test_decision_tree_classifier_fit():
         ["A", "B", "B", "B", "B"],
     ]
     y_train = ["SECOND", "FIRST", "SECOND", "SECOND", "FIRST", "SECOND", "SECOND", "SECOND", "FIRST", "SECOND", "SECOND", "SECOND", "SECOND", "FIRST", "SECOND", "SECOND", "SECOND", "FIRST", "SECOND", "SECOND", "SECOND", "SECOND", "FIRST", "SECOND", "SECOND", "SECOND"]
-    tree_expect =   ["Attribute", 0,
-                        ["Value", "A",
-                            ["Attribute", 4,
-                                ["Value", "A",
-                                    ["Leaf", "FIRST", 5, 14]
-                                ],
-                                ["Value", "B",
-                                    ["Attribute", 3,
-                                        ["Value", "A",
-                                            ["Attribute", 1,
-                                                ["Value", "A",
-                                                    ["Leaf", "FIRST", 1, 2]
-                                                ],
-                                                ["Value", "B",
-                                                    ["Leaf", "SECOND", 1, 2]
-                                                ]
-                                            ]
-                                        ],
-                                        ["Value", "B",
-                                            ["Leaf", "SECOND", 7, 9]
-                                        ]
-                                    ]
-                                ]
-                            ]
-                        ],
-                        ["Value", "B",
-                            ["Leaf", "SECOND", 12, 26]
-                        ]
-                    ]
 
-    dtree.fit(X_train, y_train)
-    assert myutils.compare_tree_lists(tree_expect, dtree.tree)
+    f.fit(X_train, y_train)
+    print(len(f.forest))
+
+def test_random_forest_classifier_fit_big():
+    f = MyRandomForestClassifier(F=0.33333, M=100, max_threads=6)
+
+    data = MyPyTable().load_from_file("input_data/titanic.txt")
+    header = data.column_names[:-1]
+    X_train = myutils.prepare_x_list_from_mypytable(data, header)
+    y_train = data.get_column(-1)
+
+    f.fit(X_train, y_train)
+
+def test_random_forest_classifier_predict_big():
+    f = MyRandomForestClassifier(F=0.5, num_trees=32, M=3, max_threads=6)
+
+    data = MyPyTable().load_from_file("input_data/titanic.txt")
+    header = data.column_names[:-1]
+    X = myutils.prepare_x_list_from_mypytable(data, header)
+    y = data.get_column(-1)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=100)
+
+    f.fit(X_train, y_train)
+    y_actual = f.predict(X_test)
+    assert myutils.compare_str_lists_margin(y_test, y_actual, margin=0.7)
+
 
 def test_decision_tree_classifier_predict():
-    dtree = MyDecisionTreeClassifier()
+    f = MyRandomForestClassifier(F=0.333, M=10, max_threads=1)
 
     # interview dataset
     interview_header = ["level", "lang", "tweets", "phd", "interviewed_well"]
@@ -824,8 +795,9 @@ def test_decision_tree_classifier_predict():
     X_test = [["Junior", "Java", "yes", "no"], ["Junior", "Java", "yes", "yes"]]
     predict_expect = ["True", "False"]
 
-    dtree.fit(X_train, y_train)
-    predict_actual = dtree.predict(X_test)
+    f.fit(X_train, y_train)
+    predict_actual = f.predict(X_test)
+    print(predict_actual)
     assert myutils.compare_str_lists(predict_expect, predict_actual)
 
 
@@ -863,13 +835,13 @@ def test_decision_tree_classifier_predict():
     X_test = [["B", "B", "B", "B", "B"], ["A", "A", "A", "A", "A"], ["A", "A", "A", "A", "B"]]
     predict_expect = ["SECOND", "FIRST", "FIRST"]
 
-    dtree.fit(X_train, y_train)
-    predict_actual = dtree.predict(X_test)
+    f.fit(X_train, y_train)
+    predict_actual = f.predict(X_test)
     assert myutils.compare_str_lists(predict_expect, predict_actual)
 
 
 def test_decision_tree_classifier_print_rules():
-    dtree = MyDecisionTreeClassifier()
+    dtree = DecisionTreeClassifier()
 
     # interview dataset
     header = ["level", "lang", "tweets", "phd", "interviewed_well"]

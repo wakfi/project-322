@@ -65,33 +65,39 @@ def normalize_table(table: list, *, against: list = None)-> list:
 def get_column(table: list, col: int)-> list:
     return [table[i][col] for i in range(len(table))]
 
-def shuffle_in_place(size: int) -> list:
+def gen_shuffle_indecies(size: int) -> list:
     indecies = [ i for i in range(size) ]
     for i in range(size - 1):
         j = random.randrange(i, size)
         indecies[i], indecies[j] = indecies[j], indecies[i]
     return indecies
 
-def reorder_in_parallel(new_indecies: list, *args):
+def shuffle(l: list, seed=None)-> list:
+    if seed is not None:
+        random.seed(seed)
+    if len(l) == 0:
+        return l
+    idx = gen_shuffle_indecies(len(l))
+    return [l[i] for i in idx]
+
+def reorder(new_indecies: list, *args):
+    """Reorder one or more lists using the provided order of indecies. With multiple lists, all will be reorderd in parallel"""
     return tuple([[arg[i] for i in new_indecies] for arg in args])
 
 def shuffle_in_parallel(*args):
     size = len(args)
     if size == 0:
         return ()
-    new_indecies = shuffle_in_place(size)
-    return reorder_in_parallel(new_indecies, *args)
+    new_indecies = gen_shuffle_indecies(size)
+    return reorder(new_indecies, *args)
 
-def sortFunc(e):
-    return e[0]
-
-def sort_in_parallel(*args):
+def sort_in_parallel(*args, sortFunc=None):
     if len(args) == 0:
         return ()
     sort_arg = [(args[0][j], j) for j in range(len(args[0]))]
     sort_arg.sort(key=sortFunc)
     new_indecies = [index for _, index in sort_arg]
-    return reorder_in_parallel(new_indecies, *args)
+    return reorder(new_indecies, *args)
 
 def stratify(y: list)-> list:
     class_labels = []
@@ -238,6 +244,16 @@ def compare_str_lists(l1, l2):
             return False
     return True
 
+def compare_str_lists_margin(l1, l2, margin=0.83):
+    if len(l1) < len(l2):
+        for _ in range(len(l2) - len(l1)):
+            l1.append(None)
+    elif len(l1) > len(l2):
+        for _ in range(len(l1) - len(l2)):
+            l2.append(None)
+    # print(avg([1 if l1[i] != None and l1[i] == l2[i] else 0 for i in range(len(l1))]))
+    return avg([1 if l1[i] != None and l1[i] == l2[i] else 0 for i in range(len(l1))]) >= margin
+
 def compare_tree_lists(t1, t2):
     if len(t1) != len(t2):
         return False
@@ -287,11 +303,14 @@ def generate_decision_rule_fragment(node: list, attribute_names:"list[str]" = No
 
 def multi_iter(*iters: Iterable):
     if len(iters) == 0:
-        return None
+        return
     iters = [ iter(it) for it in iters ]
     try:
         while True:
-            yield (next(iter) for iter in iters)
+            try:
+                yield (next(iter) for iter in iters)
+            except:
+                return
     except:
         pass
 
@@ -364,3 +383,11 @@ def itemset_confidence(transactions: "list[set]", lhs: set, rhs: set)-> float:
     count_s = sum(rows_match(itemset, transaction) for transaction in transactions)
     count_l = sum(rows_match(lhs, transaction) for transaction in transactions)
     return count_s / count_l
+
+# I = TypeVar("I")
+def most_common_item(l: list):
+    item_labels = { i for i in l }
+    items = { i: 0 for i in item_labels }
+    for item in l:
+        items[item] = items[item] + 1
+    return dict_max_key(items)
