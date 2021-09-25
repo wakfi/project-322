@@ -362,6 +362,7 @@ class DecisionTreeClassifier(BaseClassifier):
         """
         super().__init__()
         self.tree = None
+        self.default = None
 
     def select_attribute(self, instances: "list[list]", attribute_indexes: "list[int]", attribute_domains: "list[list]", class_index: int)-> int:
         # print(1)
@@ -470,7 +471,7 @@ class DecisionTreeClassifier(BaseClassifier):
             # leaf_index = myutils.dict_max_key({ i: leaf_candidate[2] for i, leaf_candidate in enumerate(leaf_candidates) })
             # return leaf_candidates[leaf_index]
         # print("t:",tree)
-        # print()
+        # print("TDIDT call returning")
         if self.all_leaf_agree(tree[2:]):
             # print('all match')
             return ["Leaf", tree[2][2][1], sum(node[2][2] for node in tree[2:]), len(instances)]
@@ -495,6 +496,7 @@ class DecisionTreeClassifier(BaseClassifier):
             Use attribute indexes to construct default attribute names (e.g. "att0", "att1", ...).
         """
         super().fit(X_train, y_train)
+        self.default = myutils.most_common_item(y_train)
         width = len(X_train[0])
         # prepare indecies
         attribute_indexes = [ i for i in range(width) ]
@@ -533,10 +535,14 @@ class DecisionTreeClassifier(BaseClassifier):
                         node = n[2]
                         break
                 if node == n_start:
-                    print("node:", node)
-                    print("instance:", instance)
-                    exit(1)
-            y_predicted.append(node[1])
+                    # print("node:", node)
+                    # print("instance:", instance)
+                    node = None
+                    break
+            if node is None:
+                y_predicted.append(self.default)
+            else:
+                y_predicted.append(node[1])
         return y_predicted
 
     def print_decision_rules(self, attribute_names:"list[str]" = None, class_name:str = "class")-> str:
@@ -615,13 +621,19 @@ class ForestMember(DecisionTreeClassifier):
         self.accuracy, self.error_rate, self.precision, self.recall, self.fmeasure = myevaluation.metrics.all(y_test, y_actual)
 
     def fit_and_eval(self, X_train, y_train, X_test, y_test, domains=None):
+        # print(f"Tree {self.id}: Begin TDIDT")
         # print("fe1")
         domains = [ list(set(myutils.get_column(X_train, i))) for i in range(len(X_train[0])) ] if domains is None else domains
         self.fit(X_train, y_train, domains)
+        # print(f"Tree {self.id}: TDIDT Complete")
+        # print(f"Tree {self.id}: Begin Predict")
         # print("fe2")
         y_actual = self.predict(X_test)
+        # print(f"Tree {self.id}: Predict Complete")
+        # print(f"Tree {self.id}: Begin Evaluate")
         # print("fe3")
         self.evaluate(y_test, y_actual)
+        # print(f"Tree {self.id}: Evaluate Complete. Accuracy: {self.accuracy}, Precision: {self.precision}, F-measure: {self.fmeasure}")
         # print("fe4")
         # print("acc:", self.accuracy)
         return (self.id, self.tree, (self.accuracy, self.error_rate, self.precision, self.recall, self.fmeasure))
@@ -726,7 +738,7 @@ class MyRandomForestClassifier(BaseClassifier):
             pass
         if self.q.qsize() != 0 or self.out_q.qsize() != 0:
             raise RuntimeError("Queues not empty")
-        self.forest.sort(key=lambda tree: tree.accuracy, reverse=True)
+        self.forest.sort(key=lambda tree: tree.precision, reverse=True)
         # print()
         # print()
         # [ print(tree.accuracy) for tree in self.forest ]

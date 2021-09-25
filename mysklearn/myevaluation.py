@@ -48,6 +48,47 @@ def train_test_split(X, y, test_size=0.33, random_state=None, shuffle=True):
 
     return [ X[i] for i in train ], [ X[i] for i in test ], [ y[i] for i in train ], [ y[i] for i in test ]
 
+def stratified_train_test_split(X, y, test_size=0.33, random_state=None, shuffle=True):
+    """Split dataset into train and test sets (sublists) based on a test set size.
+
+    Args:
+        X(list of list of obj): The list of samples
+            The shape of X is (n_samples, n_features)
+        y(list of obj): The target y values (parallel to X)
+            The shape of y is n_samples
+        test_size(float or int): (does nothing in this version) float for proportion of dataset to be in test set (e.g. 0.33 for a 2:1 split)
+            or int for absolute number of instances to be in test set (e.g. 5 for 5 instances in test set)
+        random_state(int): integer used for seeding a random number generator for reproducible results
+        shuffle(bool): whether or not to randomize the order of the instances before splitting
+
+    Returns:
+        X_train(list of list of obj): The list of training samples
+        X_test(list of list of obj): The list of testing samples
+        y_train(list of obj): The list of target y values for training (parallel to X_train)
+        y_test(list of obj): The list of target y values for testing (parallel to X_test)
+
+    Note:
+        Loosely based on sklearn's train_test_split(): https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.train_test_split.html
+    """
+    if random_state is not None:
+       random.seed(random_state)
+    groups, _ = myutils.stratify(y)
+    if shuffle:
+        for i in range(len(groups)):
+            groups[i] = myutils.shuffle(groups[i])
+
+    train = []
+    test = []
+    i = 0
+    for group in groups:
+        for j in group:
+            if i % 3 % 2 == 0:
+                train.append(j)
+            else:
+                test.append(j)
+            i += 1
+    return [ X[i] for i in train ], [ X[i] for i in test ], [ y[i] for i in train ], [ y[i] for i in test ]
+
 def train_test_split_indecies(X, y, test_size=0.33, random_state=None, shuffle=True):
     """Split dataset into train and test sets (sublists) based on a test set size.
 

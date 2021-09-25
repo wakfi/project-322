@@ -386,8 +386,118 @@ def itemset_confidence(transactions: "list[set]", lhs: set, rhs: set)-> float:
 
 # I = TypeVar("I")
 def most_common_item(l: list):
-    item_labels = { i for i in l }
+    item_labels = { i for i in l if i is not None }
     items = { i: 0 for i in item_labels }
     for item in l:
+        if item is None:
+            continue
         items[item] = items[item] + 1
+    if sum(list(items.values())) == 0:
+        return None
     return dict_max_key(items)
+
+# categorelization
+def bucketize(data: "list[int | float]")-> "list[int]":
+    max_val = max(data)
+    min_val = min(data)
+    values_range = max_val - min_val
+    dsl = len(set(data))
+    num_bins = 10 if dsl > 9 else dsl
+    if num_bins < 7:
+        return data
+    bin_width = values_range / num_bins
+    # likely a float
+
+    cutoffs = list(arange(min_val, max_val, bin_width))
+    # cutoffs.append(max_val)
+    cutoffs = [ round(cutoff, 2) for cutoff in cutoffs ]
+
+    step = cutoffs[1] - cutoffs[0]
+    frequencies = [ math.floor((value-min_val)/step) + (1 if value < max_val else 0) for value in data ]
+    assert len(set(frequencies)) == num_bins
+    return frequencies
+
+
+
+def get_frequencies(col):
+    col.sort()
+    values = []
+    counts = []
+
+    for value in col:
+        if value not in values:
+            values.append(value)
+            counts.append(1)
+        else:
+            counts[-1] += 1
+    return values, counts
+
+def arange(start, stop, step):
+    i = start
+    while i < stop:
+        yield i
+        i += step
+
+def compute_equal_width_cutoffs(values, num_bins):
+    values_range = max(values) - min(values)
+    bin_width = values_range / num_bins
+    # likely a float
+
+    cutoffs = list(arange(min(values), max(values), bin_width))
+    cutoffs.append(max(values))
+    cutoffs = [ round(cutoff, 2) for cutoff in cutoffs ]
+    return cutoffs
+
+def compute_frequencies_for_equal_width_bins(values, cutoffs):
+    if len(cutoffs) < 3:
+        return [len(values)] # should probably actually be undefined for cutoffs < 2
+    min_val = min(values)
+    frequencies = [ 0 for i in range(len(cutoffs))]
+    step = cutoffs[1] - cutoffs[0]
+    for value in values:
+        frequencies[math.floor((value-min_val)/step)] += 1
+    last = frequencies.pop()
+    frequencies[len(frequencies)-1] += last
+    return frequencies
+
+def frequencies_for_cutoffs_continuous(values, cutoffs):
+    cutoffs.sort()
+    values.sort()
+    i = 0
+    j = 0
+    size = len(values)
+    freqs = [ 0 for i in range(len(cutoffs))]
+    for cutoff in cutoffs:
+        while(j < size and values[j] <= cutoff):
+            freqs[i] = freqs[i] + 1
+            j = j + 1
+        i = i + 1
+    freqs[-1] = len(values) - j
+    return freqs
+
+# def floor(val):
+#     return int(val - abs(val - round(val)))
+
+def year_to_decade(y: int):
+    if y < 1950:
+        return 1940
+    elif y < 1960:
+        return 1950
+    elif y < 1970:
+        return 1960
+    elif y < 1980:
+        return 1970
+    elif y < 1990:
+        return 1980
+    elif y < 2000:
+        return 1990
+    elif y < 2010:
+        return 2000
+    elif y < 2020:
+        return 2010
+    else:
+        return 2020
+
+
+def music_years(l: "list[int]"):
+    return [year_to_decade(year) for year in l]

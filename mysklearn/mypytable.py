@@ -24,10 +24,12 @@ class MyPyTable:
             data = []
         self.data = copy.deepcopy(data)
 
-    def pretty_print(self):
+    def pretty_print(self, rows=None):
         """Prints the table in a nicely formatted grid structure.
         """
-        print(tabulate(self.data, headers=self.column_names))
+        if rows is None:
+            rows = len(self.data)
+        print(tabulate(self.data[:rows], headers=self.column_names))
 
     def get_shape(self):
         """Computes the dimension of the table (N x M).
@@ -59,6 +61,15 @@ class MyPyTable:
         if include_missing_values:
             return [ row[col] for row in self.data ]
         return [ row[col] for row in self.data if row[col] != 'NA']
+
+    def apply_to_column(self, col_identifier, operation):
+        if isinstance(col_identifier, str):
+            col = self.column_names.index(col_identifier)
+        else:
+            col = col_identifier
+        c = self.get_column(col)
+        for i, result in enumerate(operation(c)):
+            self.data[i][col] = result
 
     def convert_to_numeric(self):
         """Try to convert each value in the table to a numeric type (float).
